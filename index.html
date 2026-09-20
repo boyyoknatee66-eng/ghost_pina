@@ -96,6 +96,8 @@ kbd{display:inline-block;min-width:28px;padding:1px 8px;margin:0 2px;border-radi
 #hurt{position:fixed;inset:0;z-index:12;pointer-events:none;opacity:0;transition:opacity .45s;
   background:radial-gradient(ellipse at center,rgba(229,71,60,0) 45%,rgba(229,71,60,.62) 100%)}
 #hurt.on{opacity:1;transition:opacity .04s}
+#vignette{position:fixed;inset:0;z-index:8;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 52%,rgba(0,0,0,.5) 100%)}
+#fear{position:fixed;inset:0;z-index:11;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 28%,rgba(14,0,0,.55) 62%,rgba(0,0,0,.94) 100%)}
 #loadError{position:fixed;inset:0;z-index:99;background:#0b0f11;align-items:center;justify-content:center;text-align:center;padding:30px;display:flex}
 #loadError.hidden{display:none!important}
 
@@ -132,6 +134,8 @@ kbd{display:inline-block;min-width:28px;padding:1px 8px;margin:0 2px;border-radi
 <body>
 
 <div id="game"></div>
+<div id="vignette"></div>
+<div id="fear"></div>
 <div id="hurt"></div>
 
 <div id="hud" class="hidden">
@@ -165,7 +169,7 @@ kbd{display:inline-block;min-width:28px;padding:1px 8px;margin:0 2px;border-radi
       ไม้กางเขนกู้ภัย
     </div>
     <p class="story">คุณหลงเข้ามาในบ้านร้างที่ทางเดินวกวนเหมือนเขาวงกต ซอมบี้เดินเพ่นพ่านอยู่ในความมืด แต่พวกมันกลัวแสงจากไม้กางเขนศักดิ์สิทธิ์ เก็บกุญแจทอง 3 ดอก แล้วหาประตูทางออกสีเขียวให้เจอ!</p>
-    <p class="story">ซอมบี้ต้องโดนไม้กางเขนหลายครั้งก่อนจะสลายเป็นประกายแสง เก็บหัวใจสีชมพูเพื่อเติมพลัง และดูแผนที่มุมขวาบนเมื่อหลงทาง</p>
+    <p class="story">ระวัง! ซอมบี้บางตัวหลับอยู่ในความมืด ถ้าเดินเข้าใกล้มันจะตื่นขึ้นมา และมีผีสาวลอยทะลุกำแพงตามหาคุณ ไม้กางเขนไล่ผีให้หายไปได้ชั่วคราว ส่วนซอมบี้ต้องฟาดหลายครั้งจึงจะสลายเป็นประกายแสง เก็บหัวใจสีชมพูเพื่อเติมพลัง</p>
     <p class="story touchhelp">จอสัมผัส: แตะค้างครึ่งซ้ายเพื่อเดิน ลากนิ้วครึ่งขวาเพื่อหันมอง กดปุ่ม ✝ เพื่อฟาดไม้กางเขน</p>
     <div class="ctrls">
       <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div><div>เดิน (Shift เพื่อวิ่ง)</div>
@@ -227,9 +231,9 @@ const ATK_DUR = 0.42, ATK_RANGE = 2.9;
 const KEYS_NEEDED = 3;
 
 const DIFFS = {
-  easy:   { zombies: 5,  speed: 0.8, hp: 2, cap: 8,  aggro: 9  },
-  normal: { zombies: 8,  speed: 1.0, hp: 3, cap: 12, aggro: 12 },
-  hard:   { zombies: 11, speed: 1.2, hp: 3, cap: 16, aggro: 15 }
+  easy:   { zombies: 5,  speed: 0.8, hp: 2, cap: 8,  aggro: 9,  ghosts: 1, ghost: 0.8,  ghostGone: 22 },
+  normal: { zombies: 8,  speed: 1.0, hp: 3, cap: 12, aggro: 12, ghosts: 1, ghost: 1.0,  ghostGone: 16 },
+  hard:   { zombies: 11, speed: 1.2, hp: 3, cap: 16, aggro: 15, ghosts: 2, ghost: 1.25, ghostGone: 12 }
 };
 let diff = DIFFS.normal;
 
@@ -257,15 +261,15 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 $('game').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x050608);
-scene.fog = new THREE.FogExp2(0x050608, 0.055);
+scene.background = new THREE.Color(0x030405);
+scene.fog = new THREE.FogExp2(0x030405, 0.064);
 
 const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.08, 80);
 camera.rotation.order = 'YXZ';
 scene.add(camera);
 
-scene.add(new THREE.AmbientLight(0x6a78a8, 0.38));
-const flash = new THREE.SpotLight(0xfff1d6, 1.7, 30, 0.62, 0.55, 1.4);   // ไฟฉาย
+scene.add(new THREE.AmbientLight(0x5a6890, 0.3));
+const flash = new THREE.SpotLight(0xfff1d6, 1.6, 28, 0.58, 0.6, 1.5);   // ไฟฉาย
 flash.position.set(0, 0, 0);
 camera.add(flash);
 flash.target.position.set(0, 0, -6);
@@ -414,7 +418,8 @@ let level = null, grid = null;
 let distStart = new Int16Array(W * W);
 const distF = new Int16Array(W * W);   // ระยะทางจากผู้เล่น (ให้ซอมบี้เดินตามในเขาวงกต)
 let explored = new Uint8Array(W * W);
-let zombies = [], items = [], lamps = [], particles = [];
+let zombies = [], ghosts = [], items = [], lamps = [], particles = [];
+let fear = 0, beatT = 0, pulse = 0;
 let door = null, spawnT = 25, fieldT = 0;
 const P = { x: 0, z: 0, hp: 5, maxHp: 5, keys: 0, kills: 0, stam: 1, tired: false, inv: 0, time: 0, dead: false };
 let yaw = 0, pitch = 0, bobT = 0, shake = 0, locked = false, mapOn = true;
@@ -535,26 +540,81 @@ function makeHeart() {
 }
 
 function makeZombie() {
-  const grp = new THREE.Group(), mats = [];
-  const mk = c => { const m = new THREE.MeshPhongMaterial({ color: c, shininess: 6 }); mats.push(m); return m; };
-  const skin = mk(pick([0x86b85f, 0x7fae5a, 0x9cc26b]));
-  const shirt = mk(pick([0x6a4c93, 0x8c4a3d, 0x3e6c8a, 0x7a7a3a, 0x4a7a5a]));
-  const pants = mk(0x2f3444), hair = mk(0x2a2118), rip = mk(0x1c1a20);
-  const eyeM = new THREE.MeshBasicMaterial({ color: 0xfff27a }), mouthM = new THREE.MeshBasicMaterial({ color: 0x1a0a0a });
+  const grp = new THREE.Group(), mats = [], extra = [];
+  const mk = c => { const m = new THREE.MeshPhongMaterial({ color: c, shininess: 4 }); mats.push(m); return m; };
+  const basic = c => { const m = new THREE.MeshBasicMaterial({ color: c }); extra.push(m); return m; };
+  const skin = mk(pick([0x8a9a78, 0x7d8f7a, 0x9aa38a, 0x6f8570])), dark = mk(0x3f4b3a);
+  const shirt = mk(pick([0x3a3340, 0x40352c, 0x2f3a3a, 0x4a3a38]));
+  const pants = mk(0x25272e), shoe = mk(0x161412), hair = mk(0x1c1712);
+  const boneM = new THREE.MeshPhongMaterial({ color: 0xd8d2bc, shininess: 10 }); extra.push(boneM);
+  const holeM = basic(0x0a0709), eyeM = basic(0xff3020), toothM = basic(0xe9e2c8);
   const body = new THREE.Group(); grp.add(body);
-  const box = (w, h, d, mat, x, y, z, parent) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); (parent || body).add(m); return m; };
-  const limb = (w, h, d, mat, x, y, z) => { const p = new THREE.Group(); p.position.set(x, y, z); box(w, h, d, mat, 0, -h / 2, 0, p); body.add(p); return p; };
-  const legL = limb(0.26, 0.75, 0.28, pants, -0.17, 0.75, 0), legR = limb(0.26, 0.75, 0.28, pants, 0.17, 0.75, 0);
-  box(0.66, 0.78, 0.36, shirt, 0, 1.14, 0);
-  box(0.24, 0.3, 0.02, rip, 0.14, 1.06, 0.185);
-  const armL = limb(0.2, 0.7, 0.2, skin, -0.44, 1.48, 0), armR = limb(0.2, 0.7, 0.2, skin, 0.44, 1.48, 0);
-  box(0.22, 0.2, 0.22, shirt, 0, -0.1, 0, armL); box(0.22, 0.2, 0.22, shirt, 0, -0.1, 0, armR);
-  const head = box(0.48, 0.48, 0.46, skin, 0, 1.78, 0);
-  box(0.5, 0.08, 0.48, hair, 0, 2.04, 0); box(0.12, 0.14, 0.1, hair, -0.14, 2.12, 0.05); box(0.12, 0.18, 0.1, hair, 0.12, 2.14, -0.04);
-  box(0.1, 0.09, 0.02, eyeM, -0.11, 1.82, 0.235); box(0.1, 0.09, 0.02, eyeM, 0.11, 1.82, 0.235);
-  box(0.22, 0.06, 0.02, mouthM, 0, 1.68, 0.235);
-  grp.scale.setScalar(0.95);
-  return { grp, body, legL, legR, armL, armR, head, mats };
+  const add = (parent, w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); parent.add(m); return m; };
+  const pivot = (parent, x, y, z) => { const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g); return g; };
+
+  // ขา (ขาขวาสั้นกว่า เดินกะเผลก)
+  const legL = pivot(body, -0.17, 0.75, 0), legR = pivot(body, 0.17, 0.7, 0);
+  add(legL, 0.24, 0.75, 0.26, pants, 0, -0.375, 0); add(legL, 0.26, 0.1, 0.36, shoe, 0, -0.72, 0.05);
+  add(legR, 0.22, 0.68, 0.24, pants, 0, -0.34, 0);  add(legR, 0.24, 0.1, 0.34, shoe, 0, -0.66, 0.05);
+
+  // ลำตัวท่อนบน (โน้มไปข้างหน้า)
+  const upper = pivot(body, 0, 0.75, 0);
+  add(upper, 0.6, 0.72, 0.34, shirt, 0, 0.36, 0);
+  add(upper, 0.28, 0.34, 0.02, holeM, 0.08, 0.34, 0.175);                       // เสื้อขาดเป็นรู
+  [0.44, 0.34, 0.24].forEach((y, i) => add(upper, 0.3 - i * 0.02, 0.035, 0.02, boneM, 0.08, y, 0.19));   // ซี่โครง
+  [[-0.2, 0.32], [0, 0.42], [0.2, 0.28]].forEach(([x, l]) => { const t = add(upper, 0.12, l, 0.02, shirt, x, 0.02 - l / 2, 0.16); t.rotation.z = rnd(-0.15, 0.15); });   // ชายเสื้อฉีก
+
+  // หัว
+  const headG = pivot(upper, 0, 0.8, 0.05);
+  add(headG, 0.44, 0.48, 0.44, skin, 0, 0.26, 0);
+  for (const sx of [-1, 1]) {
+    add(headG, 0.13, 0.12, 0.03, holeM, sx * 0.11, 0.32, 0.225);                // เบ้าตาโหลลึก
+    add(headG, 0.05, 0.05, 0.03, eyeM, sx * 0.11, 0.32, 0.235);
+  }
+  const glowMats = [];
+  for (const sx of [-1, 1]) { const gl = makeGlow(0xff2a1a, 0.42, 0.9); gl.position.set(sx * 0.11, 0.32, 0.27); headG.add(gl); glowMats.push(gl.material); extra.push(gl.material); }
+  add(headG, 0.14, 0.1, 0.02, dark, 0.13, 0.16, 0.225);
+  add(headG, 0.3, 0.06, 0.3, holeM, 0, 0.0, 0.1);                               // ช่องปากดำ
+  add(headG, 0.28, 0.05, 0.02, toothM, 0, 0.12, 0.23);                          // ฟันบน
+  const jaw = pivot(headG, 0, 0.06, 0);
+  add(jaw, 0.34, 0.1, 0.32, skin, 0, -0.05, 0.14);
+  add(jaw, 0.26, 0.04, 0.02, toothM, 0, 0.01, 0.29);                            // ฟันล่าง
+  add(headG, 0.46, 0.06, 0.46, hair, 0, 0.52, 0); add(headG, 0.1, 0.22, 0.1, hair, -0.2, 0.4, -0.05); add(headG, 0.12, 0.16, 0.1, hair, 0.16, 0.5, -0.1);
+
+  // แขน (ข้างขวายาวกว่า) เล็บยาวซีด
+  const mkArm = (sx, L) => {
+    const a = pivot(upper, sx * 0.4, 0.66, 0);
+    add(a, 0.2, 0.3, 0.2, shirt, 0, -0.15, 0);
+    add(a, 0.14, L - 0.3, 0.14, skin, 0, -0.3 - (L - 0.3) / 2, 0);
+    add(a, 0.17, 0.13, 0.1, skin, 0, -L - 0.03, 0);
+    for (const fx of [-0.045, 0.045]) add(a, 0.03, 0.2, 0.03, boneM, fx, -L - 0.16, 0.02);
+    return a;
+  };
+  const armL = mkArm(-1, 0.78), armR = mkArm(1, 0.95);
+  return { grp, body, upper, headG, jaw, legL, legR, armL, armR, mats, extra, glowMats, eyeM, tilt: rnd(-0.3, 0.3) };
+}
+
+function makeGhost() {
+  const grp = new THREE.Group(), fades = [], extra = [];
+  const mk = (c, o, dbl) => { const m = new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o, depthWrite: false, side: dbl ? THREE.DoubleSide : THREE.FrontSide }); extra.push(m); fades.push([m, o]); return m; };
+  const body = new THREE.Group(); grp.add(body);
+  const dress = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.55, 1.45, 14, 1, true), mk(0xcfd8ea, 0.5, true)); dress.position.y = 0.95; body.add(dress);
+  const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.25, 0.7, 10, 1, true), mk(0xcfd8ea, 0.22, true)); tail.position.y = 0.2; body.add(tail);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 10), mk(0xe9edf6, 0.8)); head.position.y = 1.85; body.add(head);
+  const hairM = mk(0x040406, 0.92, true);
+  for (let i = 0; i < 10; i++) {                                                  // ผมยาวสยาย เว้นช่องหน้าไว้
+    const a = (i / 10) * Math.PI * 2; if (Math.sin(a) > 0.75 && Math.abs(Math.cos(a)) < 0.4) continue;
+    const len = rnd(1.0, 1.7), st = new THREE.Mesh(new THREE.BoxGeometry(0.07, len, 0.03), hairM);
+    st.position.set(Math.cos(a) * 0.21, 1.95 - len / 2, Math.sin(a) * 0.21); st.rotation.y = Math.PI / 2 - a; body.add(st);
+  }
+  const blackM = new THREE.MeshBasicMaterial({ color: 0x000000 }); extra.push(blackM);
+  for (const sx of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), blackM); e.scale.set(0.05, 0.075, 0.02); e.position.set(sx * 0.075, 1.9, 0.185); body.add(e); }
+  const mouth = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), blackM); mouth.scale.set(0.045, 0.11, 0.02); mouth.position.set(0, 1.75, 0.19); body.add(mouth);
+  const armM = mk(0xdfe6f2, 0.55);
+  const mkArm = sx => { const p = new THREE.Group(); p.position.set(sx * 0.2, 1.55, 0); const m = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.05, 0.06), armM); m.position.y = -0.5; p.add(m); body.add(p); return p; };
+  const armL = mkArm(-1), armR = mkArm(1);
+  const glow = makeGlow(0x9fc8ff, 3.4, 0.35); glow.position.y = 1.2; body.add(glow); extra.push(glow.material); fades.push([glow.material, 0.35]);
+  return { grp, body, armL, armR, fades, extra };
 }
 
 /* =========================================================
@@ -568,7 +628,7 @@ function clearLevel() {
       if (o.material && !shared.has(o.material)) o.material.dispose();
     });
   }
-  level = null; zombies = []; items = []; lamps = []; door = null;
+  level = null; zombies = []; ghosts = []; items = []; lamps = []; door = null;
   for (const p of particles) { pGroup.remove(p.pts); p.pts.geometry.dispose(); p.pts.material.dispose(); }
   particles = [];
 }
@@ -687,13 +747,25 @@ function buildLevel() {
   const zt = [];
   for (const t of zc) { if (zt.length >= diff.zombies) break; if (zt.every(o => Math.hypot(o.x - t.x, o.y - t.y) >= 4)) zt.push(t); }
   zt.forEach(t => spawnZombie(tileC(t.x), tileC(t.y)));
+  spawnGhosts();
 }
 
-function spawnZombie(x, z) {
-  const m = makeZombie();
-  const zb = Object.assign(m, { x, z, hp: diff.hp, stun: 0, kx: 0, kz: 0, flash: 0, cd: rnd(0.3, 1), anim: rnd(0, 6), face: rnd(0, 6.28),
-    wt: null, prev: -1, chasing: false, dying: false, dieT: 0, dead: false, hold: rnd(0, 2), lunge: 0 });
+function spawnZombie(x, z, sleep) {
+  const m = makeZombie(), sy = rnd(0.95, 1.12), sxz = rnd(0.92, 1.05);
+  const zb = Object.assign(m, { x, z, hp: diff.hp, stun: 0, kx: 0, kz: 0, flash: 0, cd: rnd(0.3, 1), anim: rnd(0, 6), face: rnd(0, 6.28), ph: rnd(0, 6),
+    wt: null, prev: -1, chasing: false, dying: false, dieT: 0, dead: false, hold: rnd(0, 2), lunge: 0, roar: 0, tw: rnd(1, 3), twk: 0, twd: 0,
+    sleep: sleep === undefined ? Math.random() < 0.45 : sleep, bs: { x: 0.95 * sxz, y: 0.95 * sy, z: 0.95 * sxz } });
+  zb.grp.scale.set(zb.bs.x, zb.bs.y, zb.bs.z);
+  setEyes(zb, !zb.sleep);
   m.grp.position.set(x, 0, z); level.add(m.grp); zombies.push(zb);
+}
+function setEyes(z, on) { z.eyeM.color.setHex(on ? 0xff3020 : 0x501010); z.glowMats.forEach(m => { m.opacity = on ? 0.9 : 0.12; }); }
+function spawnGhosts() {
+  for (let i = 0; i < diff.ghosts; i++) {
+    const m = makeGhost();
+    ghosts.push(Object.assign(m, { x: 0, z: 0, state: 'gone', timer: 35 + i * 25, vis: 0, cd: 0, anim: rnd(0, 6), face: 0, wh: 2, ph: rnd(0, 6) }));
+    m.grp.visible = false; level.add(m.grp);
+  }
 }
 function spawnFar() {
   const px = Math.floor(P.x / CS), py = Math.floor(P.z / CS);
@@ -701,7 +773,7 @@ function spawnFar() {
     const x = 1 + irnd(W - 2), y = 1 + irnd(W - 2);
     if (grid[y][x] !== 0) continue;
     if (Math.hypot(x - px, y - py) < 10 || distF[y * W + x] >= 0) continue;
-    spawnZombie(tileC(x), tileC(y)); return;
+    spawnZombie(tileC(x), tileC(y), false); return;
   }
 }
 
@@ -712,6 +784,7 @@ function resetPlayer() {
   explored = new Uint8Array(W * W);
   bfs(distF, 1, 1, diff.aggro);
   hudCache.hearts = ''; hudCache.keys = -1; hudCache.kills = -1; hudCache.clock = '';
+  P.seenGhost = false; P.seenBanish = false; fear = 0; beatT = 0; pulse = 0; $('fear').style.opacity = '0';
 }
 
 /* =========================================================
@@ -755,17 +828,41 @@ const sfxHurt = () => { tone(130, 0.3, 'sawtooth', 0.3, -70); noiseBurst(0.25, 0
 const sfxWin = () => [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.45, 'triangle', 0.16, 0, i * 0.13));
 const sfxLose = () => [392, 349, 311, 262].forEach((f, i) => tone(f, 0.5, 'sawtooth', 0.12, -10, i * 0.22));
 const sfxDoor = () => { tone(180, 0.25, 'square', 0.08, -60); };
-function sfxGroan(dist) {
+function sfxGroan(dist, pan) {
+  if (!AC) return;
   const now = performance.now() / 1000;
-  if (now - lastGroan < 1.6) return; lastGroan = now;
-  const v = clamp(0.24 - dist * 0.009, 0.03, 0.24);
-  tone(95 + rnd(-15, 15), 0.85, 'sawtooth', v, -35); tone(62 + rnd(-6, 6), 0.9, 'triangle', v * 0.8, -12);
+  if (now - lastGroan < 1.2) return; lastGroan = now;
+  const v = clamp(0.3 - dist * 0.011, 0.04, 0.3), t = AC.currentTime, dur = 1.35;
+  const out = AC.createGain();
+  if (AC.createStereoPanner) { const p = AC.createStereoPanner(); p.pan.value = clamp(pan || 0, -1, 1); out.connect(p); p.connect(master); } else out.connect(master);
+  const flt = AC.createBiquadFilter(); flt.type = 'lowpass'; flt.frequency.value = 560; flt.connect(out);
+  const g = AC.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.25); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); g.connect(flt);
+  const base = 78 + rnd(-10, 25);
+  [['sawtooth', base, 1], ['square', base * 1.5, 0.35]].forEach(([type, f, vol]) => {
+    const o = AC.createOscillator(), og = AC.createGain(), lfo = AC.createOscillator(), lg = AC.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 0.6, t + dur);
+    lfo.frequency.value = 5 + rnd(0, 3); lg.gain.value = f * 0.07; lfo.connect(lg); lg.connect(o.frequency);
+    og.gain.value = vol; o.connect(og); og.connect(g);
+    o.start(t); lfo.start(t); o.stop(t + dur + 0.05); lfo.stop(t + dur + 0.05);
+  });
+  noiseBurst(dur, v * 0.5, 480, 220, 2);
 }
+const sfxWake = () => { tone(300, 0.35, 'sawtooth', 0.13, 500); noiseBurst(0.3, 0.2, 2400, 600, 0.8); };
+const sfxThump = () => { tone(62, 0.13, 'sine', 0.42, -26); tone(52, 0.15, 'sine', 0.32, -20, 0.17); };
+function sfxWhisper(vol, pan) {
+  if (!AC) return;
+  noiseBurst(1.6, vol, 2400, 900, 10); tone(740, 1.5, 'sine', vol * 0.55, -60); tone(748, 1.5, 'sine', vol * 0.55, -60);
+}
+const sfxScream = () => { tone(600, 0.7, 'sawtooth', 0.14, 900); tone(900, 0.6, 'square', 0.05, -500, 0.1); noiseBurst(0.6, 0.2, 3000, 500, 3); };
+const sfxGhostTouch = () => { tone(210, 0.6, 'sawtooth', 0.25, -120); noiseBurst(0.5, 0.3, 1500, 200, 1, 'lowpass'); };
 setInterval(() => {
   if (state !== 'playing' || !AC) return;
-  if (Math.random() < 0.6) noiseBurst(0.7, 0.05, 350, 900, 6);
-  if (Math.random() < 0.25) tone(70, 1.2, 'triangle', 0.05, -15);
-}, 9000);
+  const r = Math.random();
+  if (r < 0.3) noiseBurst(0.8, 0.06, 350, 900, 6);                                   // ไม้กระดานลั่น
+  else if (r < 0.5) sfxGroan(rnd(24, 34), rnd(-1, 1));                              // เสียงครางไกล ๆ
+  else if (r < 0.65) { noiseBurst(0.18, 0.28, 180, 90, 1, 'lowpass'); setTimeout(() => noiseBurst(0.18, 0.22, 170, 80, 1, 'lowpass'), 260); }   // ตึง ตึง
+  else if (r < 0.8) sfxWhisper(0.05, 0);
+}, 7000);
 
 /* =========================================================
    ผู้เล่น: เคลื่อนที่ ฟาดไม้กางเขน
@@ -796,9 +893,22 @@ function doHit() {
     if (!lineClear(P.x, P.z, z.x, z.z)) continue;
     hitZombie(z, dx / (d || 1), dz / (d || 1));
   }
+  for (const g of ghosts) {                     // ไม้กางเขนไล่ผี (ผีทะลุกำแพงได้ จึงไม่เช็กกำแพง)
+    if (g.state === 'gone' || g.vis < 0.15) continue;
+    const dx = g.x - P.x, dz = g.z - P.z, d = Math.hypot(dx, dz);
+    if (d > ATK_RANGE + 0.8) continue;
+    if (d > 0.6 && (dx * fx + dz * fz) / d < 0.2) continue;
+    banishGhost(g);
+  }
+}
+function banishGhost(g) {
+  g.state = 'gone'; g.timer = diff.ghostGone;
+  sparkle(g.x, 1.3, g.z, 0xbfdcff, 32, 4.2); sparkle(g.x, 1.0, g.z, 0xffffff, 14, 2.5); sfxScream();
+  if (!P.seenBanish) { P.seenBanish = true; toast('ผีกลัวไม้กางเขน! มันหายไปชั่วคราว แต่เดี๋ยวก็กลับมา', 3800); }
 }
 function setFlash(z, on) { z.mats.forEach(m => m.emissive.setHex(on ? 0x9a9a80 : 0x000000)); }
 function hitZombie(z, nx, nz) {
+  if (z.sleep) { z.sleep = false; setEyes(z, true); }
   z.hp--; z.stun = 0.5; z.kx = nx * 8; z.kz = nz * 8; z.flash = 0.18; setFlash(z, true);
   sparkle(z.x, 1.3, z.z, 0xfff0a0, 14, 3); sfxHit();
   if (z.hp <= 0) { z.dying = true; z.dieT = 0; P.kills++; sparkle(z.x, 1.2, z.z, 0xffd75e, 34, 4.5); sparkle(z.x, 1.0, z.z, 0xffffff, 16, 2.5); sfxPoof(); }
@@ -856,26 +966,42 @@ function updatePlayer(dt) {
 /* =========================================================
    ซอมบี้
    ========================================================= */
+const panTo = (x, z) => { const dx = x - P.x, dz = z - P.z, d = Math.hypot(dx, dz) || 1; return clamp((Math.cos(yaw) * dx - Math.sin(yaw) * dz) / d, -1, 1); };
+function poseSleep(z) {
+  const b = Math.sin(z.anim * 1.6) * 0.02;
+  z.upper.rotation.x = 0.7 + b; z.headG.rotation.x = 0.55; z.headG.rotation.z = z.tilt; z.jaw.rotation.x = 0.1;
+  z.armL.rotation.x = -0.62; z.armR.rotation.x = -0.68; z.legL.rotation.x = 0; z.legR.rotation.x = 0;
+  z.body.position.y = 0; z.body.rotation.z = 0;
+  z.grp.position.x = z.x; z.grp.position.z = z.z; z.grp.rotation.y = z.face;
+}
 function updateZombie(z, dt) {
   if (z.dying) {
-    z.dieT += dt; const k = Math.min(1, z.dieT / 0.55);
-    z.grp.scale.setScalar(0.95 * (1 - k * k)); z.grp.position.y = k * 1.2; z.grp.rotation.y += dt * 10;
-    if (k >= 1) { level.remove(z.grp); z.mats.forEach(m => m.dispose()); z.dead = true; }
+    z.dieT += dt; const k = Math.min(1, z.dieT / 0.55), sc = 1 - k * k;
+    z.grp.scale.set(z.bs.x * sc, z.bs.y * sc, z.bs.z * sc); z.grp.position.y = k * 1.2; z.grp.rotation.y += dt * 10;
+    if (k >= 1) { level.remove(z.grp); z.mats.forEach(m => m.dispose()); z.extra.forEach(m => m.dispose()); z.dead = true; }
     return;
   }
-  z.anim += dt; z.cd -= dt; z.lunge = Math.max(0, z.lunge - dt);
+  z.anim += dt; z.cd -= dt; z.lunge = Math.max(0, z.lunge - dt); z.roar = Math.max(0, z.roar - dt);
+  const dxp = P.x - z.x, dzp = P.z - z.z, dp = Math.hypot(dxp, dzp);
+  z.grp.visible = dp < 42;
   if (z.flash > 0) { z.flash -= dt; if (z.flash <= 0) setFlash(z, false); }
   if (Math.abs(z.kx) + Math.abs(z.kz) > 0.05) { moveEnt(z, z.kx * dt, z.kz * dt, ZR); const f = Math.exp(-7 * dt); z.kx *= f; z.kz *= f; }
 
-  const dxp = P.x - z.x, dzp = P.z - z.z, dp = Math.hypot(dxp, dzp);
+  // ซอมบี้ที่หลับอยู่ จะสะดุ้งตื่นเมื่อคุณเดินเข้าใกล้
+  if (z.sleep) {
+    if (!P.dead && (dp < 4 || (dp < 8 && lineClear(z.x, z.z, P.x, P.z)))) {
+      z.sleep = false; setEyes(z, true); z.stun = 0.6; z.roar = 0.7; sfxWake(); sfxGroan(dp, panTo(z.x, z.z));
+    } else { poseSleep(z); return; }
+  }
+
   let speed = 0, tx = null, tz = null;
   if (z.stun > 0) { z.stun -= dt; }
   else {
     const ti = Math.floor(z.z / CS) * W + Math.floor(z.x / CS);
     const d = distF[ti];
     if (d >= 0 && !P.dead) {
-      if (!z.chasing) { z.chasing = true; z.wt = null; if (dp < 22) sfxGroan(dp); }
-      speed = 1.95 * diff.speed;
+      if (!z.chasing) { z.chasing = true; z.wt = null; if (dp < 22) sfxGroan(dp, panTo(z.x, z.z)); }
+      speed = 1.6 * diff.speed * (1 + 0.55 * Math.max(0, Math.sin(z.anim * 1.7 + z.ph)));   // พุ่งเป็นช่วง ๆ
       if (d === 0 || dp < 1.7) { tx = P.x; tz = P.z; }
       else {
         const cx = ti % W, cy = (ti / W) | 0;
@@ -888,14 +1014,14 @@ function updateZombie(z, dt) {
       if (dp < 0.9) speed = 0;
     } else {
       if (z.chasing) { z.chasing = false; z.wt = null; }
-      speed = 0.95 * diff.speed;
+      speed = 0.85 * diff.speed;
       if (z.wt === null || Math.hypot(z.wt.x - z.x, z.wt.z - z.z) < 0.25) {
         if (z.hold > 0) { z.hold -= dt; speed = 0; z.wt = null; }
         else {
           const cx = ti % W, cy = (ti / W) | 0, opts = [];
           for (const [dx, dy] of D4) { const nx = cx + dx, ny = cy + dy; if (grid[ny] && grid[ny][nx] === 0 && ny * W + nx !== z.prev) opts.push([nx, ny]); }
           if (!opts.length) { const px = z.prev % W, py = (z.prev / W) | 0; if (z.prev >= 0 && grid[py][px] === 0) opts.push([px, py]); }
-          if (opts.length) { const [nx, ny] = pick(opts); z.prev = ti; z.wt = { x: tileC(nx), z: tileC(ny) }; z.hold = Math.random() < 0.25 ? rnd(0.5, 2) : 0; }
+          if (opts.length) { const [nx, ny] = pick(opts); z.prev = ti; z.wt = { x: tileC(nx), z: tileC(ny) }; z.hold = Math.random() < 0.3 ? rnd(0.5, 2.5) : 0; }
         }
       }
       if (z.wt) { tx = z.wt.x; tz = z.wt.z; }
@@ -913,16 +1039,65 @@ function updateZombie(z, dt) {
   } else if (dp < 6) {
     const want = Math.atan2(dxp, dzp); let df = want - z.face; df = Math.atan2(Math.sin(df), Math.cos(df)); z.face += df * Math.min(1, dt * 6);
   }
-  // แอนิเมชัน
-  const rate = z.chasing ? 9 : 5, sw = moving ? Math.sin(z.anim * rate) * 0.65 : 0;
-  z.legL.rotation.x = sw; z.legR.rotation.x = -sw;
-  const raise = z.chasing ? -1.45 : -1.05, wob = Math.sin(z.anim * 3) * 0.08;
-  z.armL.rotation.x = raise + wob - (z.lunge > 0 ? 0.35 : 0); z.armR.rotation.x = raise - wob - (z.lunge > 0 ? 0.35 : 0);
-  z.body.position.y = moving ? Math.abs(Math.sin(z.anim * rate)) * 0.05 : 0;
-  z.body.rotation.z = moving ? Math.sin(z.anim * rate * 0.5) * 0.06 : 0;
-  z.body.rotation.x = z.lunge > 0 ? 0.35 * Math.sin(Math.PI * (1 - z.lunge / 0.3)) : 0;
+
+  // ท่าทาง: หลังค่อม เดินกะเผลก หัวกระตุก ขากรรไกรงับ
+  const rate = z.chasing ? 8 : 4.5, sw = moving ? Math.sin(z.anim * rate) * 0.7 : 0;
+  z.legL.rotation.x = sw; z.legR.rotation.x = -sw * 0.55 - (moving ? 0.18 : 0);
+  const lean = (z.chasing ? 0.45 : 0.3) + (z.lunge > 0 ? 0.3 * Math.sin(Math.PI * (1 - z.lunge / 0.3)) : 0) - (z.roar > 0 ? 0.75 : 0) - (z.stun > 0 && z.roar <= 0 ? 0.5 : 0);
+  z.upper.rotation.x = lean;
+  const raise = (z.chasing ? -1.95 : -1.3) + Math.sin(z.anim * 3 + z.ph) * 0.09 - (z.lunge > 0 ? 0.35 : 0);
+  z.armL.rotation.x = raise; z.armR.rotation.x = raise - 0.12 + Math.sin(z.anim * 2.3) * 0.08;
+  z.armL.rotation.z = 0.12; z.armR.rotation.z = -0.1;
+  z.tw -= dt; if (z.tw <= 0) { z.tw = rnd(1.2, 3.5); z.twk = 0.25; z.twd = rnd(-0.55, 0.55); }
+  z.twk = Math.max(0, z.twk - dt);
+  z.headG.rotation.z = z.tilt + (z.twk > 0 ? z.twd * Math.sin(Math.PI * z.twk / 0.25) : 0);
+  z.headG.rotation.x = 0.12 - lean * 0.35 - (z.roar > 0 ? 0.5 : 0);
+  z.jaw.rotation.x = z.roar > 0 || z.lunge > 0 ? 0.95 : (z.chasing ? 0.5 + 0.28 * Math.sin(z.anim * 11) : 0.2 + 0.1 * Math.sin(z.anim * 2 + z.ph));
+  z.body.position.y = moving ? Math.abs(Math.sin(z.anim * rate)) * 0.06 : 0;
+  z.body.rotation.z = moving ? Math.sin(z.anim * rate * 0.5) * 0.1 : 0;
   z.grp.position.x = z.x; z.grp.position.z = z.z; z.grp.rotation.y = z.face;
 }
+
+// ผีสาว: ลอยทะลุกำแพง ตามหาผู้เล่นไม่หยุด ฆ่าไม่ได้ แต่ไม้กางเขนไล่ให้หายไปชั่วคราว
+function updateGhost(g, dt, t) {
+  g.anim += dt; g.cd -= dt;
+  const dxp = P.x - g.x, dzp = P.z - g.z, dp = Math.hypot(dxp, dzp);
+  if (g.state === 'gone') {
+    g.vis = Math.max(0, g.vis - dt * 3);
+    g.timer -= dt;
+    if (g.timer <= 0 && !P.dead) {
+      const a = rnd(0, 6.283), r = rnd(17, 24);
+      g.x = clamp(P.x + Math.cos(a) * r, 2, W * CS - 2); g.z = clamp(P.z + Math.sin(a) * r, 2, W * CS - 2);
+      g.state = 'haunt'; g.vis = 0; g.wh = 1.5;
+    }
+  } else {
+    g.vis = Math.min(1, g.vis + dt * 0.7);
+    const sp = (dp < 20 ? 2.0 : 1.0) * diff.ghost;
+    if (dp > 0.5) { g.x += dxp / dp * sp * dt; g.z += dzp / dp * sp * dt; }
+    g.face = Math.atan2(dxp, dzp);
+    if (dp < 1.05 && g.cd <= 0 && !P.dead && P.inv <= 0 && state === 'playing') { g.cd = 2; g.state = 'gone'; g.timer = 10; hurtPlayer(); sfxGhostTouch(); }
+    g.wh -= dt;
+    if (dp < 16 && g.wh <= 0) { g.wh = rnd(3.5, 6); sfxWhisper(clamp(0.15 - dp * 0.006, 0.03, 0.13), panTo(g.x, g.z)); }
+    if (!P.seenGhost && dp < 16 && g.vis > 0.5) { P.seenGhost = true; toast('เย็นวาบ! มีผีลอยมาหาคุณ ฟาดไม้กางเขนไล่มันไป!', 4200); }
+  }
+  const flick = 0.7 + 0.3 * Math.sin(t * 11 + g.ph) * Math.sin(t * 4.3 + g.ph), a = g.vis * flick * (dp < 9 ? 1 : 0.7);
+  for (const [m, base] of g.fades) m.opacity = base * a;
+  g.grp.visible = a > 0.02;
+  g.grp.position.set(g.x, 0.12 + Math.sin(g.anim * 1.7) * 0.12, g.z); g.grp.rotation.y = g.face;
+  g.body.rotation.z = Math.sin(g.anim * 1.3) * 0.08;
+  g.armL.rotation.x = -1.25 + Math.sin(g.anim * 2) * 0.15; g.armR.rotation.x = -1.25 + Math.sin(g.anim * 2 + 1.5) * 0.15;
+}
+function updateFear(dt) {
+  let near = 99;
+  for (const z of zombies) if (!z.dying && !z.sleep && z.chasing) near = Math.min(near, Math.hypot(z.x - P.x, z.z - P.z));
+  for (const g of ghosts) if (g.state !== 'gone' && g.vis > 0.3) near = Math.min(near, Math.hypot(g.x - P.x, g.z - P.z) * 0.85);
+  fear = clamp((12 - near) / 12, 0, 1);
+  beatT -= dt;
+  if (fear > 0.05 && beatT <= 0) { sfxThump(); beatT = 0.42 + (1 - fear) * 0.75; pulse = 1; }
+  pulse = Math.max(0, pulse - dt * 3);
+  $('fear').style.opacity = String(clamp(fear * 0.75 * (0.55 + 0.45 * pulse), 0, 0.88));
+}
+function clearFear() { fear = 0; $('fear').style.opacity = '0'; }
 function separateZombies() {
   for (let i = 0; i < zombies.length; i++) for (let j = i + 1; j < zombies.length; j++) {
     const a = zombies[i], b = zombies[j]; if (a.dying || b.dying) continue;
@@ -996,10 +1171,12 @@ function drawMinimap(dt) {
    ========================================================= */
 let flickT = 0, flickNext = 6;
 function updateAmbient(dt, t) {
-  for (const l of lamps) l.light.intensity = l.base * (0.82 + 0.18 * Math.sin(t * 9 + l.ph) * Math.sin(t * 3.7 + l.ph * 2));
+  for (const l of lamps) {
+    l.light.intensity = l.base * (0.82 + 0.18 * Math.sin(t * 9 + l.ph) * Math.sin(t * 3.7 + l.ph * 2)) * (fear > 0.4 && Math.random() < fear * 0.22 ? 0.15 : 1);
+  }
   flickNext -= dt;
-  if (flickNext <= 0) { flickNext = rnd(5, 12); flickT = 0.18; }
-  if (flickT > 0) { flickT -= dt; flash.intensity = rnd(0.3, 1.2); } else flash.intensity = 1.7;
+  if (flickNext <= 0) { const scared = fear > 0.2; flickNext = scared ? rnd(0.4, 2.2) : rnd(5, 12); flickT = scared ? rnd(0.1, 0.35) : 0.18; }
+  if (flickT > 0) { flickT -= dt; flash.intensity = rnd(0.05, 0.9); } else flash.intensity = 1.6;
   if (door && door.open) door.light.intensity = 0.9 + Math.sin(t * 4) * 0.25;
 }
 
@@ -1037,6 +1214,8 @@ function update(dt, t) {
   for (const z of zombies) updateZombie(z, dt);
   separateZombies();
   zombies = zombies.filter(z => !z.dead);
+  for (const g of ghosts) updateGhost(g, dt, t);
+  updateFear(dt);
   spawnT -= dt;
   if (spawnT <= 0) { spawnT = 28; if (zombies.filter(z => !z.dying).length < diff.cap) spawnFar(); }
 
@@ -1115,20 +1294,20 @@ function startGame() {
 }
 function pauseGame() {
   if (state !== 'playing') return;
-  state = 'paused'; joy.x = joy.y = 0; holdAtk = false; show('pause', true);
+  state = 'paused'; joy.x = joy.y = 0; holdAtk = false; clearFear(); show('pause', true);
   if (document.exitPointerLock && document.pointerLockElement) document.exitPointerLock();
 }
 function resumeGame() {
   show('pause', false); state = 'playing'; last = performance.now(); lockPointer();
 }
 function toMenu() {
-  state = 'menu'; show('pause', false); show('end', false); show('hud', false); show('touch', false); show('menu', true);
+  state = 'menu'; clearFear(); show('pause', false); show('end', false); show('hud', false); show('touch', false); show('menu', true);
   if (document.pointerLockElement) document.exitPointerLock();
   buildLevel(); resetPlayer();
 }
 function endGame(win) {
   if (state !== 'playing') return;
-  state = win ? 'won' : 'lost'; holdAtk = false; joy.x = joy.y = 0;
+  state = win ? 'won' : 'lost'; holdAtk = false; joy.x = joy.y = 0; clearFear();
   if (document.pointerLockElement) document.exitPointerLock();
   win ? sfxWin() : sfxLose();
   const sec = Math.floor(P.time), c = String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0');
